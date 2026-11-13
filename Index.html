@@ -1,0 +1,249 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviator Betsson Bot</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#10131c;color:white;
+ font-family:Arial,sans-serif;padding:18px
+}
+header{text-align:center;padding:18px}
+h1{color:#ff4545;margin-bottom:5px}
+.sub{color:#aaa;font-size:13px}
+.card{
+ background:#1c2230;border-radius:14px;
+ padding:17px;margin:13px 0;
+ border:1px solid #303849
+}
+h2{font-size:17px;color:#ff6565}
+input,button{
+ padding:13px;border-radius:9px;border:0;
+ font-size:15px
+}
+input{background:#fff;color:#111;width:100%;margin:7px 0}
+button{
+ background:#ff4545;color:white;
+ font-weight:bold;width:100%;margin-top:7px
+}
+button:active{opacity:.8}
+.stats{
+ display:grid;grid-template-columns:1fr 1fr;gap:10px
+}
+.stat{
+ background:#293244;padding:14px;border-radius:10px;
+ text-align:center
+}
+.stat strong{display:block;font-size:23px;color:#ffcf55}
+.stat span{font-size:12px;color:#bbb}
+#history{
+ display:flex;flex-wrap:wrap;gap:7px
+}
+.mult{
+ padding:9px 12px;border-radius:7px;
+ background:#343e50;font-weight:bold
+}
+.low{color:#69d5a0}
+.mid{color:#ffcf55}
+.high{color:#ff6565}
+#signal{font-size:18px;font-weight:bold}
+.small{font-size:12px;color:#aaa;line-height:1.5}
+footer{text-align:center;color:#777;font-size:12px;padding:20px}
+</style>
+</head>
+<body>
+
+<header>
+<h1>✈ AVIATOR BOT</h1>
+<div class="sub">BETSSON · ANALIZADOR ESTADÍSTICO</div>
+</header>
+
+<div class="card">
+<h2>📥 Registrar multiplicador</h2>
+<input id="multiplier" type="number"
+placeholder="Ejemplo: 2.45" step="0.01" min="1">
+<button onclick="addResult()">AGREGAR RESULTADO</button>
+</div>
+
+<div class="card">
+<h2>📊 Estadísticas generales</h2>
+<div class="stats">
+<div class="stat">
+<strong id="total">0</strong>
+<span>Partidas registradas</span>
+</div>
+<div class="stat">
+<strong id="average">0.00x</strong>
+<span>Promedio</span>
+</div>
+<div class="stat">
+<strong id="low">0</strong>
+<span>Menores de 2x</span>
+</div>
+<div class="stat">
+<strong id="high">0</strong>
+<span>Mayores o iguales a 2x</span>
+</div>
+</div>
+</div>
+
+<div class="card">
+<h2>🔎 Análisis de patrones</h2>
+<p id="pattern">Esperando resultados...</p>
+<p id="streak">Racha actual: 0</p>
+<p id="frequency">Frecuencia: sin datos</p>
+</div>
+
+<div class="card">
+<h2>🎯 Panel de señales</h2>
+<p id="signal">Esperando datos suficientes...</p>
+<p class="small">
+Las señales describen únicamente el historial registrado.
+No representan predicciones del próximo vuelo.
+</p>
+</div>
+
+<div class="card">
+<h2>📈 Últimos multiplicadores</h2>
+<div id="history">Sin resultados registrados.</div>
+</div>
+
+<div class="card">
+<h2>🧹 Administrar historial</h2>
+<button onclick="undo()">ELIMINAR ÚLTIMO</button>
+<button onclick="clearHistory()" style="background:#555">
+BORRAR TODO
+</button>
+</div>
+
+<footer>
+AVIATOR BOT · Herramienta estadística educativa
+</footer>
+
+<script>
+let results = [];
+
+try {
+ results = JSON.parse(
+  localStorage.getItem("aviator_results") || "[]"
+ );
+ if (!Array.isArray(results)) results = [];
+} catch(e) {
+ results = [];
+}
+
+function save(){
+ localStorage.setItem(
+  "aviator_results",JSON.stringify(results)
+ );
+}
+
+function addResult(){
+ const field=document.getElementById("multiplier");
+ const value=parseFloat(field.value);
+
+ if(!Number.isFinite(value)||value<1){
+  alert("Introduce un multiplicador válido.");
+  return;
+ }
+
+ results.unshift(value);
+ save();
+ field.value="";
+ update();
+}
+
+function undo(){
+ results.shift();
+ save();
+ update();
+}
+
+function clearHistory(){
+ if(confirm("¿Quieres borrar todo el historial?")){
+  results=[];
+  save();
+  update();
+ }
+}
+
+function update(){
+ const total=results.length;
+ const low=results.filter(x=>x<2).length;
+ const high=total-low;
+
+ const average=total?
+  results.reduce((a,b)=>a+b,0)/total:0;
+
+ document.getElementById("total").textContent=total;
+ document.getElementById("average").textContent=
+  average.toFixed(2)+"x";
+ document.getElementById("low").textContent=low;
+ document.getElementById("high").textContent=high;
+
+ const recent=results.slice(0,10);
+ const pattern=document.getElementById("pattern");
+
+ if(total>=3){
+  const recentAvg=recent.reduce((a,b)=>a+b,0)/recent.length;
+  pattern.textContent=
+   "Promedio de las últimas "+recent.length+
+   " partidas: "+recentAvg.toFixed(2)+"x";
+ }else{
+  pattern.textContent="Registra al menos 3 resultados.";
+ }
+
+ let streak=0;
+ if(total){
+  const type=results[0]<2;
+  for(const value of results){
+   if((value<2)===type) streak++;
+   else break;
+  }
+ }
+ document.getElementById("streak").textContent=
+  "Racha actual de resultados "+(total?
+  (results[0]<2?"menores de 2x":"de 2x o más"):"")+
+  ": "+streak;
+
+ document.getElementById("frequency").textContent=
+  total?
+  "Menores de 2x: "+(low/total*100).toFixed(1)+
+  "% · De 2x o más: "+(high/total*100).toFixed(1)+"%"
+  :"Frecuencia: sin datos";
+
+ const signal=document.getElementById("signal");
+ if(total<10){
+  signal.textContent="REGISTRAR MÁS DATOS";
+ }else{
+  const percentage=low/total*100;
+  signal.textContent=
+   "Historial: "+percentage.toFixed(1)+
+   "% de resultados menores de 2x. "+
+   "Esto describe el pasado, no anticipa el siguiente vuelo.";
+ }
+
+ const history=document.getElementById("history");
+ history.innerHTML="";
+
+ results.slice(0,40).forEach(value=>{
+  const item=document.createElement("span");
+  item.className="mult "+(
+   value<2?"low":value<10?"mid":"high"
+  );
+  item.textContent=value.toFixed(2)+"x";
+  history.appendChild(item);
+ });
+
+ if(total===0){
+  history.textContent="Sin resultados registrados.";
+ }
+}
+
+update();
+</script>
+</body>
+</html>
