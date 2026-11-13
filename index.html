@@ -107,6 +107,19 @@ No representan predicciones del próximo vuelo.
 </div>
 
 <div class="card">
+<h2>🎯 Estimación estadística del próximo vuelo</h2>
+<p class="small">Analiza los últimos 20 multiplicadores registrados. Son frecuencias del historial, no una predicción fiable del siguiente resultado.</p>
+<div class="stats">
+<div class="stat"><strong id="predLow">—</strong><span>Menos de 2x</span></div>
+<div class="stat"><strong id="predMid">—</strong><span>De 2x a menos de 10x</span></div>
+<div class="stat"><strong id="predHigh">—</strong><span>10x o más</span></div>
+<div class="stat"><strong id="predCount">0/20</strong><span>Datos analizados</span></div>
+</div>
+<p id="predSummary">Registra resultados para iniciar el análisis.</p>
+<p class="small">Cada ronda es independiente. Los resultados anteriores no permiten saber ni garantizar el próximo multiplicador. No uses estos porcentajes como señal para apostar.</p>
+</div>
+
+<div class="card">
 <h2>📈 Últimos multiplicadores</h2>
 <div id="history">Sin resultados registrados.</div>
 </div>
@@ -225,6 +238,24 @@ function update(){
    "% de resultados menores de 2x. "+
    "Esto describe el pasado, no anticipa el siguiente vuelo.";
  }
+
+ // Estimación descriptiva basada únicamente en los últimos 20 resultados.
+ const sample=results.slice(0,20);
+ const sampleSize=sample.length;
+ const bands=[
+  sample.filter(x=>x<2).length,
+  sample.filter(x=>x>=2&&x<10).length,
+  sample.filter(x=>x>=10).length
+ ];
+ const ids=["predLow","predMid","predHigh"];
+ ids.forEach((id,i)=>{
+  document.getElementById(id).textContent=
+   sampleSize?(bands[i]/sampleSize*100).toFixed(1)+"%":"—";
+ });
+ document.getElementById("predCount").textContent=sampleSize+"/20";
+ document.getElementById("predSummary").textContent=sampleSize<20
+  ?"Muestra parcial: "+sampleSize+" de 20 resultados. Los porcentajes cambiarán al registrar más partidas."
+  :"Muestra completa de 20 resultados recientes. La distribución observada no anticipa la siguiente ronda.";
 
  const history=document.getElementById("history");
  history.innerHTML="";
