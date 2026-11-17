@@ -223,7 +223,7 @@ function addResult(){
  }
 
  results.unshift(value);
- if(activity) activityResults.unshift(activity);
+ activityResults.unshift(activity);
  save();
  localStorage.setItem("aviator_activity",JSON.stringify(activityResults));
  field.value="";
@@ -326,19 +326,20 @@ function update(){
   :"Muestra completa de 20 resultados recientes. La distribución observada no anticipa la siguiente ronda.";
 
  // Resumen de actividad de jugadores y apuestas.
- const activityCount=activityResults.length;
- const latest=activityResults[0];
+ const recordedActivity=activityResults.filter(Boolean);
+ const activityCount=recordedActivity.length;
+ const latest=recordedActivity[0];
  document.getElementById("lastPlayers").textContent=latest?latest.players:"—";
  document.getElementById("lastBets").textContent=latest?latest.betsCurrent+"/"+latest.betsTotal:"—";
  document.getElementById("lastBetPct").textContent=latest?latest.percentage.toFixed(1)+"%":"—";
  document.getElementById("activityRounds").textContent=activityCount;
  document.getElementById("avgPlayers").textContent=activityCount
-  ?Math.round(activityResults.reduce((sum,r)=>sum+r.players,0)/activityCount):"—";
+  ?Math.round(recordedActivity.reduce((sum,r)=>sum+r.players,0)/activityCount):"—";
  document.getElementById("avgBetPct").textContent=activityCount
-  ?(activityResults.reduce((sum,r)=>sum+r.percentage,0)/activityCount).toFixed(1)+"%":"—";
+  ?(recordedActivity.reduce((sum,r)=>sum+r.percentage,0)/activityCount).toFixed(1)+"%":"—";
 
- const lowActivity=activityResults.filter(r=>r.multiplier<2);
- const highActivity=activityResults.filter(r=>r.multiplier>=2);
+ const lowActivity=recordedActivity.filter(r=>r.multiplier<2);
+ const highActivity=recordedActivity.filter(r=>r.multiplier>=2);
  const avgPct=arr=>arr.length
   ?(arr.reduce((sum,r)=>sum+r.percentage,0)/arr.length).toFixed(1)+"%":"sin datos";
  document.getElementById("activityCompare").textContent=activityCount
@@ -349,7 +350,7 @@ function update(){
 
  const activityHistory=document.getElementById("activityHistory");
  activityHistory.innerHTML="";
- activityResults.slice(0,8).forEach(r=>{
+ recordedActivity.slice(0,8).forEach(r=>{
   const line=document.createElement("div");
   line.textContent=r.multiplier.toFixed(2)+"x · "+r.players+
    " jugadores · "+r.betsCurrent+"/"+r.betsTotal+
