@@ -64,8 +64,14 @@ footer{text-align:center;color:#777;font-size:12px;padding:20px}
 <div class="card">
 <h2>📥 Registrar multiplicador</h2>
 <input id="multiplier" type="number"
-placeholder="Ejemplo: 2.45" step="0.01" min="1">
-<button onclick="addResult()">AGREGAR RESULTADO</button>
+placeholder="Multiplicador (ej. 2.45)" step="0.01" min="1">
+<input id="players" type="number" placeholder="Jugadores (ej. 241)" min="0" step="1">
+<div class="small">Apuestas: introduce el número actual y el total que muestra el juego (ej. 323 y 583).</div>
+<div class="stats">
+<input id="betsCurrent" type="number" placeholder="Apuestas actuales" min="0" step="1">
+<input id="betsTotal" type="number" placeholder="Total mostrado" min="1" step="1">
+</div>
+<button onclick="addResult()">GUARDAR RONDA Y ACTIVIDAD</button>
 </div>
 
 <div class="card">
@@ -88,6 +94,21 @@ placeholder="Ejemplo: 2.45" step="0.01" min="1">
 <span>Mayores o iguales a 2x</span>
 </div>
 </div>
+</div>
+
+<div class="card">
+<h2>👥 Análisis de apuestas y jugadores</h2>
+<div class="stats">
+<div class="stat"><strong id="lastPlayers">—</strong><span>Jugadores última ronda</span></div>
+<div class="stat"><strong id="lastBets">—</strong><span>Apuestas última ronda</span></div>
+<div class="stat"><strong id="lastBetPct">—</strong><span>Porcentaje de apuestas</span></div>
+<div class="stat"><strong id="activityRounds">0</strong><span>Rondas con actividad</span></div>
+<div class="stat"><strong id="avgPlayers">—</strong><span>Promedio de jugadores</span></div>
+<div class="stat"><strong id="avgBetPct">—</strong><span>Promedio de apuestas</span></div>
+</div>
+<p id="activityCompare">Registra rondas con datos de actividad para compararlas.</p>
+<div id="activityHistory" class="small">Sin datos de actividad.</div>
+<p class="small">Los contadores se registran manualmente. Sus cambios describen la actividad observada y no permiten predecir el multiplicador siguiente.</p>
 </div>
 
 <div class="card">
@@ -138,6 +159,14 @@ AVIATOR BOT · Herramienta estadística educativa
 
 <script>
 let results = [];
+let activityResults = [];
+
+try {
+ activityResults = JSON.parse(localStorage.getItem("aviator_activity") || "[]");
+ if (!Array.isArray(activityResults)) activityResults = [];
+} catch(e) {
+ activityResults = [];
+}
 
 try {
  results = JSON.parse(
@@ -157,27 +186,66 @@ function save(){
 function addResult(){
  const field=document.getElementById("multiplier");
  const value=parseFloat(field.value);
+ const playersField=document.getElementById("players");
+ const betsCurrentField=document.getElementById("betsCurrent");
+ const betsTotalField=document.getElementById("betsTotal");
+ const rawPlayers=playersField.value.trim();
+ const rawCurrent=betsCurrentField.value.trim();
+ const rawTotal=betsTotalField.value.trim();
+ const hasActivity=rawPlayers!==""||rawCurrent!==""||rawTotal!=="";
 
  if(!Number.isFinite(value)||value<1){
   alert("Introduce un multiplicador válido.");
   return;
  }
 
+ let activity=null;
+ if(hasActivity){
+  const players=Number(rawPlayers);
+  const betsCurrent=Number(rawCurrent);
+  const betsTotal=Number(rawTotal);
+  if(rawPlayers===""||rawCurrent===""||rawTotal===""||
+     !Number.isInteger(players)||players<0||
+     !Number.isInteger(betsCurrent)||betsCurrent<0||
+     !Number.isInteger(betsTotal)||betsTotal<1||
+     betsCurrent>betsTotal){
+   alert("Completa jugadores y ambos contadores de apuestas. El número actual no puede superar el total.");
+   return;
+  }
+  activity={
+   multiplier:value,
+   players:players,
+   betsCurrent:betsCurrent,
+   betsTotal:betsTotal,
+   percentage:betsCurrent/betsTotal*100,
+   date:new Date().toISOString()
+  };
+ }
+
  results.unshift(value);
+ if(activity) activityResults.unshift(activity);
  save();
+ localStorage.setItem("aviator_activity",JSON.stringify(activityResults));
  field.value="";
+ playersField.value="";
+ betsCurrentField.value="";
+ betsTotalField.value="";
  update();
 }
 
 function undo(){
  results.shift();
+ if(activityResults.length) activityResults.shift();
  save();
+ localStorage.setItem("aviator_activity",JSON.stringify(activityResults));
  update();
 }
 
 function clearHistory(){
  if(confirm("¿Quieres borrar todo el historial?")){
   results=[];
+  activityResults=[];
+  localStorage.removeItem("aviator_activity");
   save();
   update();
  }
@@ -256,6 +324,39 @@ function update(){
  document.getElementById("predSummary").textContent=sampleSize<20
   ?"Muestra parcial: "+sampleSize+" de 20 resultados. Los porcentajes cambiarán al registrar más partidas."
   :"Muestra completa de 20 resultados recientes. La distribución observada no anticipa la siguiente ronda.";
+
+ // Resumen de actividad de jugadores y apuestas.
+ const activityCount=activityResults.length;
+ const latest=activityResults[0];
+ document.getElementById("lastPlayers").textContent=latest?latest.players:"—";
+ document.getElementById("lastBets").textContent=latest?latest.betsCurrent+"/"+latest.betsTotal:"—";
+ document.getElementById("lastBetPct").textContent=latest?latest.percentage.toFixed(1)+"%":"—";
+ document.getElementById("activityRounds").textContent=activityCount;
+ document.getElementById("avgPlayers").textContent=activityCount
+  ?Math.round(activityResults.reduce((sum,r)=>sum+r.players,0)/activityCount):"—";
+ document.getElementById("avgBetPct").textContent=activityCount
+  ?(activityResults.reduce((sum,r)=>sum+r.percentage,0)/activityCount).toFixed(1)+"%":"—";
+
+ const lowActivity=activityResults.filter(r=>r.multiplier<2);
+ const highActivity=activityResults.filter(r=>r.multiplier>=2);
+ const avgPct=arr=>arr.length
+  ?(arr.reduce((sum,r)=>sum+r.percentage,0)/arr.length).toFixed(1)+"%":"sin datos";
+ document.getElementById("activityCompare").textContent=activityCount
+  ?"Promedio de apuestas en rondas menores de 2x: "+avgPct(lowActivity)+
+   " · En rondas de 2x o más: "+avgPct(highActivity)+
+   ". Comparación descriptiva, no predictiva."
+  :"Registra rondas con datos de actividad para compararlas.";
+
+ const activityHistory=document.getElementById("activityHistory");
+ activityHistory.innerHTML="";
+ activityResults.slice(0,8).forEach(r=>{
+  const line=document.createElement("div");
+  line.textContent=r.multiplier.toFixed(2)+"x · "+r.players+
+   " jugadores · "+r.betsCurrent+"/"+r.betsTotal+
+   " apuestas ("+r.percentage.toFixed(1)+"%)";
+  activityHistory.appendChild(line);
+ });
+ if(!activityCount) activityHistory.textContent="Sin datos de actividad.";
 
  const history=document.getElementById("history");
  history.innerHTML="";
