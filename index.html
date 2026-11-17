@@ -127,6 +127,22 @@ No representan predicciones del próximo vuelo.
 </p>
 </div>
 
+
+<div class="card">
+<h2>🛡️ Verificador Provably Fair (SPRIBE)</h2>
+<p class="small">Usa los datos de una ronda terminada, desde su ventana Provably Fair. El hash SHA-256 del servidor debe haberse copiado antes de esa ronda.</p>
+<input id="pfCommitment" type="text" placeholder="Next Server Seed SHA256 (copiado antes de la ronda)">
+<input id="pfServerSeed" type="text" placeholder="Server Seed revelado">
+<input id="pfClient1" type="text" placeholder="Client Seed · Player N1">
+<input id="pfClient2" type="text" placeholder="Client Seed · Player N2">
+<input id="pfClient3" type="text" placeholder="Client Seed · Player N3">
+<input id="pfCombined" type="text" placeholder="Combined SHA512 Hash mostrado por el juego">
+<button onclick="verifyFairness()">VERIFICAR RONDA</button>
+<p id="pfStatus" class="small" aria-live="polite">Introduce los datos para comprobar los hashes.</p>
+<div id="pfHistory" class="small">Sin verificaciones guardadas.</div>
+<p class="small">El verificador comprueba SHA-256(server seed) y SHA-512(server seed + las tres client seeds, en ese orden y sin separadores). SPRIBE describe estos hashes, pero no publica en su página la fórmula que convierte el SHA-512 en multiplicador; por eso no afirmamos verificar matemáticamente el multiplicador ni predecir rondas futuras.</p>
+</div>
+
 <div class="card">
 <h2>🎯 Estimación estadística del próximo vuelo</h2>
 <p class="small">Analiza los últimos 20 multiplicadores registrados. Son frecuencias del historial, no una predicción fiable del siguiente resultado.</p>
@@ -375,6 +391,84 @@ function update(){
   history.textContent="Sin resultados registrados.";
  }
 }
+
+
+let fairnessChecks = [];
+try {
+ fairnessChecks = JSON.parse(localStorage.getItem("aviator_fairness_checks") || "[]");
+ if (!Array.isArray(fairnessChecks)) fairnessChecks = [];
+} catch(e) { fairnessChecks = []; }
+
+function cleanHash(value) {
+ return value.trim().toLowerCase().replace(/^0x/, "");
+}
+async function digestHex(algorithm, value) {
+ const bytes = new TextEncoder().encode(value);
+ const digest = await crypto.subtle.digest(algorithm, bytes);
+ return Array.from(new Uint8Array(digest))
+  .map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function verifyFairness() {
+ const get = id => document.getElementById(id).value.trim();
+ const commitment = cleanHash(get("pfCommitment"));
+ const server = get("pfServerSeed");
+ const clients = [get("pfClient1"), get("pfClient2"), get("pfClient3")];
+ const combined = cleanHash(get("pfCombined"));
+ const status = document.getElementById("pfStatus");
+ if (!server || clients.some(x => !x) || !combined || !/^[0-9a-f]{128}$/.test(combined)) {
+  status.textContent = "Completa Server Seed, las tres Client Seeds y el Combined SHA512 Hash de 128 caracteres.";
+  return;
+ }
+ if (commitment && !/^[0-9a-f]{64}$/.test(commitment)) {
+  status.textContent = "El compromiso SHA-256 debe contener 64 caracteres hexadecimales.";
+  return;
+ }
+ if (!window.crypto || !crypto.subtle) {
+  status.textContent = "Este navegador no permite Web Crypto en este contexto seguro. Abre la página mediante HTTPS.";
+  return;
+ }
+ status.textContent = "Calculando hashes…";
+ try {
+  const serverHash = await digestHex("SHA-256", server);
+  const roundHash = await digestHex("SHA-512", server + clients.join(""));
+  const commitmentOK = commitment ? serverHash === commitment : null;
+  const roundOK = roundHash === combined;
+  const check = {
+   date: new Date().toISOString(),
+   commitmentOK,
+   roundOK,
+   serverHash,
+   roundHash
+  };
+  fairnessChecks.unshift(check);
+  fairnessChecks = fairnessChecks.slice(0, 20);
+  localStorage.setItem("aviator_fairness_checks", JSON.stringify(fairnessChecks));
+  const commitmentText = commitment
+   ? (commitmentOK ? "SHA-256 del servidor: COINCIDE." : "SHA-256 del servidor: NO COINCIDE.")
+   : "SHA-256 previo: no se proporcionó; no se pudo comprobar el compromiso.";
+  status.textContent = commitmentText + " SHA-512 combinado: " +
+   (roundOK ? "COINCIDE con el hash mostrado." : "NO COINCIDE con el hash mostrado.") +
+   " El multiplicador mostrado no se valida con esta comprobación.";
+  renderFairnessHistory();
+ } catch(error) {
+  status.textContent = "No fue posible calcular los hashes. Revisa los datos e inténtalo de nuevo.";
+ }
+}
+function renderFairnessHistory() {
+ const area = document.getElementById("pfHistory");
+ area.innerHTML = "";
+ fairnessChecks.slice(0, 5).forEach(check => {
+  const line = document.createElement("div");
+  const date = new Date(check.date).toLocaleString();
+  line.textContent = date + " · SHA-512: " +
+   (check.roundOK ? "COINCIDE" : "NO COINCIDE") +
+   " · SHA-256: " + (check.commitmentOK === null ? "sin dato" : check.commitmentOK ? "COINCIDE" : "NO COINCIDE");
+  area.appendChild(line);
+ });
+ if (!fairnessChecks.length) area.textContent = "Sin verificaciones guardadas.";
+}
+
+renderFairnessHistory();
 
 update();
 </script>
